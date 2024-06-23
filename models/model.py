@@ -10,10 +10,10 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
-from .matcher import build_matcher
-from .transformer import build_transformer
-from .module import build_lifemanager, build_generator
-from ..loss.loss import IntegratedLoss
+from models.matcher import build_matcher
+from models.transformer import build_transformer
+from models.module import build_lifemanager, build_generator
+from loss.loss import IntegratedLoss
 
 
 class MLP(nn.Module):
@@ -264,9 +264,9 @@ def build(args):
     criterion = IntegratedLoss(
         road_element_cls=args.road_element_cls, 
         loss_weights=args.loss_weights, 
-        label_bg_weight=args.label_bg_weight, 
-        pt_confidence_thres=args.pt_confidence_thres, 
-        pt_padding_value=args.pt_padding_value,
+        label_bg_weight=args.label_loss_weight_background, 
+        pt_confidence_thres=args.point_confidence_mask_threshold, 
+        pt_padding_value=args.pad_pt_value_gt,
     )
 
     criterion.to(device)

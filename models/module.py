@@ -96,8 +96,8 @@ class TrackQueriesGenerator():
         super().__init__()
         self.query_embed = nn.Embedding(num_queries, d_model)
         self.num_queries = num_queries
-        self.batch_size = batch_size
         self.d_model = d_model
+        self.batch_size = batch_size
         self.road_class_num = road_class_num
         self.road_pt_num = road_pt_num
 
@@ -184,8 +184,20 @@ class TrackQueriesGenerator():
         return self.common_forward(track_instances)
     
 
-def build_lifemanager():
-    return TrackQueryLifeManager()
+def build_lifemanager(args):
+    return TrackQueryLifeManager(
+        score_thresh=args.query_score_threshold, 
+        filter_score_thresh=args.query_filter_score_threshold, 
+        miss_tolerance=args.miss_tolerance, 
+        infer_batch_size=args.infer_batch_size, 
+        road_element_cls=args.road_element_cls,
+        )
 
-def build_generator():
-    return TrackQueriesGenerator()
+def build_generator(args):
+    return TrackQueriesGenerator(
+        num_queries=args.num_track_query, 
+        d_model=args.dim_model,
+        batch_size=args.train_batch_size,
+        road_class_num=len(args.road_element_cls),
+        road_pt_num=args.road_pt_pad_num
+        )

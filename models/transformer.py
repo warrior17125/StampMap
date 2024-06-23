@@ -54,7 +54,7 @@ class Transformer(nn.Module):
 class TransformerEncoder(nn.Module):
 
     def __init__(self, encoder_layer, num_layers, norm=None):
-        super.__init__()
+        super().__init__()
         self.layers = _get_clones(encoder_layer, num_layers)
         self.num_layers = num_layers
         self.norm = norm
@@ -119,7 +119,7 @@ class TransformerDecoder(nn.Module):
 class TransformerEncoderLayer(nn.Module):
 
     def __init__(self, d_model, nhead, dim_feedforward=2048, dropout=0.1, activation="relu", normalize_before=False):
-        super.__init__()
+        super().__init__()
         self.self_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
         # Implementation of Feedforward model
         self.linear1 = nn.Linear(d_model, dim_feedforward)
@@ -264,12 +264,12 @@ def _get_activation_fn(activation):
 
 def build_transformer(args):
     return Transformer(
-        d_model=args.hidden_dim,
-        dropout=args.dropout,
-        nhead=args.nheads,
+        d_model=args.dim_model,
+        nhead=args.num_heads,
+        num_encoder_layers=args.encoder_num_layers,
+        num_decoder_layers=args.decoder_num_layers,
         dim_feedforward=args.dim_feedforward,
-        num_encoder_layers=args.enc_layers,
-        num_decoder_layers=args.dec_layers,
-        normalize_before=args.pre_norm,
-        return_intermediate_dec=True,
+        dropout=args.dropout,
+        activation=args.activation,
+        num_element=args.road_element_pad_num,
     )

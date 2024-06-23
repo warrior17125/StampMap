@@ -249,7 +249,7 @@ class ClipMatcher(nn.Module):
 
         return matched_indices_sorted
 
-    def train_forward(self, track_instances):
+    def forward(self, track_instances):
         """
         match the track queries with the gt instances for a single sample
         :param track_instances:
@@ -279,5 +279,12 @@ class ClipMatcher(nn.Module):
             return track_instances, batch_matched_indices
 
 
-def build_matcher():
-    return ClipMatcher()
+def build_matcher(args):
+    return ClipMatcher(
+        num_samples=args.sub_clip_sample_size,
+        batch_size=args.train_batch_size,
+        num_query=args.num_track_query,
+        match_weights=args.match_weights,
+        road_element_cls=args.road_element_cls,
+        label_bg_weight=args.label_loss_weight_background,
+    )
