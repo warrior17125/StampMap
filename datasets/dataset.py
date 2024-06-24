@@ -26,7 +26,6 @@ class LaneDataset:
 
     def __init__(
             self,
-            mode: str,
             sample_history_frame_size,
             sub_clip_sample_size,
             sample_interval,
@@ -40,13 +39,9 @@ class LaneDataset:
             road_element_attr_def,
             bev_range,
             attrs_range,
-            task_name,
             data_meta,
-            transforms: Union[List[Any], Dict[str, Any], None] = None,
     ):
         """
-
-        :param mode: Mode in _VALID_MODE.
         :param sample_history_frame_size: number of history frames for one training sample
         :param sub_clip_sample_size: number of samples in a video sub-clip, treated as final training unit
         :param sample_interval: interval to sample frames from a video sub-clip
@@ -59,19 +54,9 @@ class LaneDataset:
         :param road_element_attr_def: definition for road element attributes
         :param bev_range: range of BEV map (x_min, x_max, y_min, y_max)
         :param attrs_range: range of road element attributes (class, lane type, lane color, curb type, curb subtype)
-        :param task_name: task name of this training task
         :param data_meta: dataset config
-        :param transforms: data augmentation settings
         """
-
-        super().__init__(
-            mode=mode,
-            meta_file=None,
-            transforms=transforms,
-        )
-
         # task settings
-        self.task_name = task_name
         self.data_meta = data_meta
         self.samples_total = {}
         self.video_sub_clips = []
@@ -108,9 +93,6 @@ class LaneDataset:
         self.total_video_sub_clip_cnt = 0
         self.clip_id_set = set()
 
-        self.use_remote_data = False
-        if "use_remote_data" in self.data_meta and self.data_meta["use_remote_data"]:
-            self.use_remote_data = True
         # load annotation files
         logger.info("Dataset Init begin!")
         self.prepare_all_data()
@@ -135,11 +117,7 @@ class LaneDataset:
         """
         # load all samples from annotation files
         # each sample is a collection of consecutive history frames
-        for name, info in self.data_meta.items():
-            if name == "use_remote_data":
-                continue
-            self.parse_one_dataset(name, info)
-            self.dataset_cnt += 1
+        self.parse_one_dataset(self.data_meta)
         self.total_sample_cnt = sum([len(item) for item in self.samples_total.values()])
 
         # generate training sub clips from samples
@@ -166,12 +144,11 @@ class LaneDataset:
             )
         )
 
-    def _parse_single_anno(self, anno_path, root_path, data_name):
+    def _parse_single_anno(self, anno_path, root_path):
         """
         parse single annotation file; generate training samples
         :param anno_path: annotation file path
         :param root_path: root path of dataset
-        :param data_name: name of dataset
         :return:
         """
 
@@ -191,7 +168,7 @@ class LaneDataset:
                 self.clip_id_set.add(clip_id)
         for clip_id in clip_del_list:
             del anno_data[clip_id]
-        sub_dir = anno_path.split("/")[-2]
+        sub_dir = anno_path.split("\\")[-2]
         clip_cnt = len(anno_data)
 
         # loop each clip in annotation data
@@ -224,14 +201,11 @@ class LaneDataset:
                 for sample_ts in sample_list:
                     sample_data = {"frame_path": []}
                     for ts in sample_ts:
-                        if self.use_remote_data is False:
-                            sample_data["frame_path"].append(os.path.join(root_path, clip_data[ts]))
-                        else:
-                            sample_data["frame_path"].append(clip_data[ts])
+                        sample_data["frame_path"].append(os.path.join(root_path, clip_data[ts]))
 
                     sample_data["clip_idx"] = idx
                     sample_data["clip_id"] = clip_id
-                    sample_data["dataset"] = "{}_{}".format(data_name, sub_dir)
+                    sample_data["dataset"] = "_{}".format(sub_dir)
 
                     self.samples_total[sub_clip_id].append(sample_data)
 
@@ -656,22 +630,17 @@ class LaneDataset:
         # load frame data from pickle
         sample_data = {"car_pose": [], "ts": [], "road_data": [], "lane_gt": []}
         for frame_path in anno_data["frame_path"]:
-            if self.use_remote_data is False:
-                if not os.path.exists(frame_path):
-                    raise RuntimeError(f"frame path {frame_path} not exists!")
-                with open(frame_path, "rb") as fin:
-                    frame_data = pickle.load(fin)
-            else:
-                frame_data = pickle.loads(read_cache_op_py(frame_path)[0])
+            if not os.path.exists(frame_path):
+                raise RuntimeError(f"frame path {frame_path} not exists!")
+            with open(frame_path, "rb") as fin:
+                frame_data = pickle.load(fin)
 
             # sample_data["car_pose"].append(frame_data["car_pose"])
             sample_data["car_pose"].append(np.zeros(1, dtype=np.float32))
             sample_data["road_data"].append(frame_data["road_data"])
             sample_data["lane_gt"].append(frame_data["lane_gt"])
-            if self.use_remote_data is False:
-                ts = float(frame_path.split("/")[-1][:-4])
-            else:
-                ts = float(frame_path[0].split(" ")[0].split("/")[-1][:-4])
+            
+            ts = float(frame_path.split("/")[-1][:-4])
             sample_data["ts"].append(ts)
         sample_ret = copy.deepcopy(anno_data)
 
@@ -690,30 +659,23 @@ class LaneDataset:
 
         return sample_ret
 
-    def parse_one_dataset(self, data_name, data_meta):
+    def parse_one_dataset(self, data_meta):
         """
         parse one dataset from configuration
-        :param data_name: dataset name
         :param data_meta: dataset meta data
         :return:
         """
 
         # collect all annotation files dirs
-        if self.use_remote_data is False:
-            sub_dirs = data_meta["sub_dirs"]
-            anno_files = []
-            for item in sub_dirs:
-                anno_dir = os.path.join(data_meta["root_dir"], item, "annotation.dat")
-                anno_files.append(anno_dir)
-        else:
-            anno_files = data_meta["meta_data"]
+        sub_dirs = data_meta["sub_dirs"]
+        anno_files = []
+        for clip_group in sub_dirs:
+            anno_dir = os.path.join(data_meta["root_dir"], clip_group, "annotation.dat")
+            anno_files.append(anno_dir)
 
         # parse all annotation files; generate training samples
         for anno_path in anno_files:
-            if self.use_remote_data is False:
-                anno_clip_cnt, anno_drop_frame_cnt = self._parse_single_anno(anno_path, data_meta["root_dir"], data_name)
-            else:
-                anno_clip_cnt, anno_drop_frame_cnt = self._parse_single_anno(anno_path, None, data_name)
+            anno_clip_cnt, anno_drop_frame_cnt = self._parse_single_anno(anno_path, data_meta["root_dir"])
             self.total_clip_cnt += anno_clip_cnt
             self.total_drop_frame_cnt += anno_drop_frame_cnt
 
@@ -910,14 +872,34 @@ class LaneDataset:
         return batch_items
 
 
-
-def build_lanedata(image_set, args):
-    root = Path(args.data_path)
-    assert root.exists(), f'provided Lane path {root} does not exist'
-    if image_set == 'train':
-        data_txt_path = args.data_txt_path_train
-        dataset = LaneDataset()
-    if image_set == 'val':
-        data_txt_path = args.data_txt_path_val
-        dataset = LaneDataset()
+def build_lane_data(image_set, args):
+    root_dir = Path(args.data_path)
+    assert root_dir.exists(), f'provided Lane path {root_dir} does not exist'
+    trainset_config = {}
+    trainset_config["root_dir"] = root_dir
+    sub_dirs = []
+    for clip_group in os.listdir(root_dir):
+        sub_dirs.append(clip_group)
+    trainset_config["sub_dirs"] = sub_dirs
+    dataset = LaneDataset(        
+        sample_history_frame_size=args.sample_history_frame_size,
+        sub_clip_sample_size=args.sub_clip_sample_size,
+        sample_interval=args.sample_interval,
+        road_element_pad_num=args.road_element_pad_num,
+        road_pt_pad_num=args.road_pt_pad_num,
+        road_element_cls=args.road_element_cls,
+        pad_pt_value_det=args.pad_pt_value_det,
+        pad_pt_value_gt=args.pad_pt_value_gt,
+        pad_attr_value=args.pad_attr_value,
+        road_element_attr_dim=args.road_element_attr_dim,
+        road_element_attr_def=args.road_element_attr_def,
+        bev_range=args.bev_range,
+        attrs_range=args.attrs_range,
+        data_meta=trainset_config,
+        )
+    # if image_set == 'train':
+    #     dataset = LaneDataset()
+    # if image_set == 'val':
+    #     data_txt_path = args.data_txt_path_val
+    #     dataset = LaneDataset()
     return dataset
