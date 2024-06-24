@@ -10,7 +10,6 @@ import numpy as np
 import torch
 from torch.utils.data import DataLoader, DistributedSampler
 
-import datasets
 from datasets import build_dataset
 # from engine import evaluate, train_one_epoch
 from models import build_model
