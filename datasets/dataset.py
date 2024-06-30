@@ -15,15 +15,15 @@ from typing import Union
 from pathlib import Path
 import numpy as np
 import torch
+from torch.utils.data import Dataset
 
 logger = logging.getLogger(__name__)
 
 
-class LaneDataset:
+class LaneDataset(Dataset):
     """
     dataset for stamp map tracker
     """
-
     def __init__(
             self,
             sample_history_frame_size,
@@ -56,12 +56,14 @@ class LaneDataset:
         :param attrs_range: range of road element attributes (class, lane type, lane color, curb type, curb subtype)
         :param data_meta: dataset config
         """
+        super().__init__()
         # task settings
         self.data_meta = data_meta
         self.samples_total = {}
         self.video_sub_clips = []
         self.sub_clip_max_idx = {}
-
+        self._transforms = None
+        
         # stamp map settings
         self.sample_history_frame_size = sample_history_frame_size
         self.road_element_pad_num = road_element_pad_num

@@ -135,11 +135,12 @@ class ClipMatcher(nn.Module):
         self._current_frame_idx = 0
         for idx in range(self._num_samples):  # track连续五帧
             gt_instance = Instances("gt")
-            gt_instance.obj_ids = road_gt["gt_ids"][idx]
-            gt_instance.labels = road_gt["gt_class"][idx]
-            gt_instance.points = road_gt["gt_points"][idx]
-            gt_instance.points_padding_mask = road_gt["gt_pt_padding_flags"][idx]
-            gt_instance.batch_num = road_gt["gt_num"][idx]
+            device = "cuda"
+            gt_instance.obj_ids = road_gt["gt_ids"][idx].to(device)
+            gt_instance.labels = road_gt["gt_class"][idx].to(device)
+            gt_instance.points = road_gt["gt_points"][idx].to(device)
+            gt_instance.points_padding_mask = road_gt["gt_pt_padding_flags"][idx].to(device)
+            gt_instance.batch_num = road_gt["gt_num"][idx].to(device)
             self.gt_instances.append(gt_instance)
 
     def _match_new_gts(self, unmatched_predictions, unmatched_gt_instances, unmatched_track_indices,

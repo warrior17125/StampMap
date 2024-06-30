@@ -41,7 +41,10 @@ class Model(nn.Module):
                  transformer,              
                  clip_matcher,
                  track_query_life_manager,
-                 road_pt_pad_num=350,
+                 road_pt_pad_num,
+                 train_batch_size,
+                 infer_batch_size,
+                 train_mode,
     ) -> None:
         super().__init__()
 
@@ -69,7 +72,10 @@ class Model(nn.Module):
 
         # track instance
         self._track_instance = None
-
+        self.road_pt_pad_num = road_pt_pad_num
+        self.train_mode = train_mode
+        self.batch_size = train_batch_size,
+        
     @staticmethod
     def adapt_inputs(pts, classes, paddings):
         """
@@ -126,7 +132,7 @@ class Model(nn.Module):
         cls_pred = self._cls_predictor(track_queries)  # [b_s, track_num, cls_dim]
         point_confidence_pred = self._point_confidence_predictor(track_queries).sigmoid()  # [b_s, track_num, pt_pad]
         point_coord_pred = self._point_coord_predictor(track_queries).sigmoid()
-        point_coord_pred = point_coord_pred.view(self._batch_size, -1, self.num_point, 2)  # [b_s, track_num, pt_pad*2]
+        point_coord_pred = point_coord_pred.view(self.batch_size[0], -1, self.road_pt_pad_num, 2)  # [b_s, track_num, pt_pad*2]
 
         # # curb attributes
         # curb_type_pred = self._curb_type_predictor(track_queries)  # [b_s, track_num, pt_pad*4] ("4" is curb types)
@@ -151,14 +157,14 @@ class Model(nn.Module):
         track_instance.point_confidence_pred = point_confidence_pred.clone().detach()
         track_instance.point_coord_pred = point_coord_pred.clone().detach()
 
-        if self._train_mode:
+        if self.train_mode:
             # match track queries with ground truth in sub clip
             track_instance, batch_matched_indices = self._clip_matcher(track_instance)
 
         # track query life manager
         track_instance = self._query_life_manager(track_instance)
 
-        if self._train_mode:
+        if self.train_mode:
             pred_outputs = {
                 "cls_pred": cls_pred,
                 "point_confidence_pred": point_confidence_pred,
@@ -184,13 +190,12 @@ class Model(nn.Module):
 
         return track_instance, pred_outputs
 
-    def train_forward(self, inputs: Dict[str, Any], ):
+    def forward(self, inputs: Dict[str, Any], ):
         """
         mian forward function for stamp map tracker model
         :param inputs:
         :return:
         """
-
         # inputs to model(sample five frames)  # [batch_size, history_frames, element_pad_num, pt_pad_num, dim]
         road_pts = inputs["road_data_points"]  # [b_s, h_f, ele_pad, pa_pad, cls_dim]
         # road_attrs = inputs["road_data_attrs"]  # [b_s, h_f, ele_pad, pa_pad, attr_dim]
@@ -201,11 +206,12 @@ class Model(nn.Module):
         # initialize clip matcher using the batch data
         self._clip_matcher.initialize_for_single_clip(inputs["road_gt"])  # initiate track_instances
 
+        device = "cuda"
         track_instance = None
         model_outputs = []
         # loop each training sample in the sub clip
         for frame_idx, (pts, classes, paddings, ts) in enumerate(zip(road_pts, road_class, road_padding_flags, delta_ts)):
-            track_instance, outputs = self.common_forward(pts, classes, paddings, ts, track_instance)
+            track_instance, outputs = self.common_forward(pts.to(device), classes.to(device), paddings.to(device), ts.to(device), track_instance)
             model_outputs.append(outputs)
 
         return model_outputs
@@ -259,6 +265,9 @@ def build(args):
         clip_matcher=clip_matcher,
         track_query_life_manager=track_query_life_manager,
         road_pt_pad_num =args.road_pt_pad_num,
+        train_batch_size = args.train_batch_size,
+        infer_batch_size = args.infer_batch_size,
+        train_mode=args.train_mode
     )
 
     criterion = IntegratedLoss(

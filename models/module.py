@@ -2,7 +2,7 @@ import torch
 from torch import nn
 from utils.utils import Instances
 
-class TrackQueryLifeManager():
+class TrackQueryLifeManager(nn.Module):
     """
     track query life management
     Drived from MOTR v2
@@ -68,7 +68,7 @@ class TrackQueryLifeManager():
 
         return track_instances
 
-    def train_forward(self, track_instances) -> Instances:
+    def forward(self, track_instances) -> Instances:
         flattened_track_instances = self._flatten_track_instance(track_instances)
 
         active_idxes = flattened_track_instances.matched_gt_ids >= 0
@@ -87,12 +87,12 @@ class TrackQueryLifeManager():
         return active_track_instances
     
 
-class TrackQueriesGenerator():
+class TrackQueriesGenerator(nn.Module):
     """
     generate empty track queries
     """
 
-    def __init__(self, num_queries, d_model, batch_size, road_class_num, road_pt_num):
+    def __init__(self, num_queries, d_model, batch_size, road_class_num, road_pt_num, train_mode):
         super().__init__()
         self.query_embed = nn.Embedding(num_queries, d_model)
         self.num_queries = num_queries
@@ -100,6 +100,7 @@ class TrackQueriesGenerator():
         self.batch_size = batch_size
         self.road_class_num = road_class_num
         self.road_pt_num = road_pt_num
+        self.train_mode = train_mode
 
     def set_mode(self, train_mode: bool = True, ) -> None:
         self._train_mode = train_mode
@@ -114,7 +115,7 @@ class TrackQueriesGenerator():
         track_instances.track_score = torch.zeros(self.num_queries, dtype=torch.float32, device=device)
         track_instances.query_indices = torch.arange(self.num_queries, dtype=torch.int64, device=device)
         track_instances.batch_num = torch.tensor([self.num_queries], dtype=torch.int64, device=device)
-        if not self._train_mode:
+        if not self.train_mode:
             track_instances.disappear_time = torch.zeros(self.num_queries, dtype=torch.float32, device=device)
 
         return track_instances.to(device)
@@ -177,7 +178,7 @@ class TrackQueriesGenerator():
         track_instances = self._restore_batch_dim(track_instances)
         return track_instances
 
-    def train_forward(self, track_instances):
+    def forward(self, track_instances):
         return self.common_forward(track_instances)
 
     def infer_forward(self, track_instances):
@@ -199,5 +200,6 @@ def build_generator(args):
         d_model=args.dim_model,
         batch_size=args.train_batch_size,
         road_class_num=len(args.road_element_cls),
-        road_pt_num=args.road_pt_pad_num
+        road_pt_num=args.road_pt_pad_num,
+        train_mode = args.train_mode,
         )

@@ -8,10 +8,10 @@ from pathlib import Path
 
 import numpy as np
 import torch
-from torch.utils.data import DataLoader, DistributedSampler
-
+from torch.utils.data import DataLoader
+from datasets.dataset import LaneDataset
 from datasets import build_dataset
-# from engine import evaluate, train_one_epoch
+from engine import evaluate, train_one_epoch
 from models import build_model
 
 
@@ -19,6 +19,7 @@ def get_args_parser():
     parser = argparse.ArgumentParser('Set transformer detector', add_help=False)
     # Training schedule
     parser.add_argument('--lr', default=1e-4, type=float)
+    parser.add_argument('--train_mode', default=True, type=bool)
     parser.add_argument('--train_batch_size', default=2, type=int)
     parser.add_argument('--infer_batch_size', default=2, type=int)
     parser.add_argument('--weight_decay', default=1e-4, type=float)
@@ -29,7 +30,7 @@ def get_args_parser():
     parser.add_argument('--clip_gradient', default=5.0, type=float)
 
     # Dataloader
-    parser.add_argument('--num_worker', default=12, type=int)
+    parser.add_argument('--num_workers', default=2, type=int)
     parser.add_argument('--worker_prefetch_factor', default=12, type=int)
     parser.add_argument('--shuffle_data', default=True, type=bool)
     
@@ -172,16 +173,12 @@ def main(args):
     sampler_val = torch.utils.data.SequentialSampler(dataset_val)
 
     batch_sampler_train = torch.utils.data.BatchSampler(
-        sampler_train, args.batch_size, drop_last=True)
+        sampler_train, args.train_batch_size, drop_last=True)
 
     data_loader_train = DataLoader(dataset_train, batch_sampler=batch_sampler_train,
-                                   collate_fn=utils.collate_fn, num_workers=args.num_workers)
-    data_loader_val = DataLoader(dataset_val, args.batch_size, sampler=sampler_val,
-                                 drop_last=False, collate_fn=utils.collate_fn, num_workers=args.num_workers)
-
-    if args.frozen_weights is not None:
-        checkpoint = torch.load(args.frozen_weights, map_location='cpu')
-        model_without_ddp.detr.load_state_dict(checkpoint['model'])
+                                   collate_fn=dataset_train.batch_collate, num_workers=args.num_workers)
+    data_loader_val = DataLoader(dataset_val, args.infer_batch_size, sampler=sampler_val,
+                                 drop_last=False, collate_fn=dataset_val.batch_collate, num_workers=args.num_workers)
 
     output_dir = Path(args.output_dir)
     if args.resume:
@@ -206,11 +203,9 @@ def main(args):
     print("Start training")
     start_time = time.time()
     for epoch in range(args.start_epoch, args.epochs):
-        if args.distributed:
-            sampler_train.set_epoch(epoch)
         train_stats = train_one_epoch(
             model, criterion, data_loader_train, optimizer, device, epoch,
-            args.clip_max_norm)
+            args.clip_gradient)
         lr_scheduler.step()
         if args.output_dir:
             checkpoint_paths = [output_dir / 'checkpoint.pth']
