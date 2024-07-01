@@ -206,12 +206,11 @@ class Model(nn.Module):
         # initialize clip matcher using the batch data
         self._clip_matcher.initialize_for_single_clip(inputs["road_gt"])  # initiate track_instances
 
-        device = "cuda"
         track_instance = None
         model_outputs = []
         # loop each training sample in the sub clip
         for frame_idx, (pts, classes, paddings, ts) in enumerate(zip(road_pts, road_class, road_padding_flags, delta_ts)):
-            track_instance, outputs = self.common_forward(pts.to(device), classes.to(device), paddings.to(device), ts.to(device), track_instance)
+            track_instance, outputs = self.common_forward(pts, classes, paddings, ts, track_instance)
             model_outputs.append(outputs)
 
         return model_outputs

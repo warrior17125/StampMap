@@ -24,10 +24,10 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
 
     # for samples, targets in metric_logger.log_every(data_loader, print_freq, header):
     for samples in data_loader:
-        # samples = samples.to(device)
+        to_cuda(samples)
 
         outputs = model(samples)
-        loss_dict = criterion(outputs)
+        loss_dict = criterion(outputs, samples)
 
         weight_dict = criterion.weight_dict
         losses = sum(loss_dict[k] * weight_dict[k] for k in loss_dict.keys() if k in weight_dict)
@@ -61,6 +61,19 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
     print("Averaged stats:", metric_logger)
     return {k: meter.global_avg for k, meter in metric_logger.meters.items()}
 
+def to_cuda(samples):
+    device = "cuda"
+    input_fields_list = ["car_poses", "road_data_points", "road_data_class", "road_data_padding_pt_flags", 
+                        "road_data_padding_element_flags", "history_delta_ts"]
+    for input_field in input_fields_list:
+        for idx in range(len(samples[input_field])):
+            samples[input_field][idx] = samples[input_field][idx].to(device)
+
+    road_gt = samples["road_gt"]
+    gt_fields_list = ["gt_points", "gt_pt_padding_flags", "gt_ids", "gt_class", "gt_num"]
+    for gt_field in gt_fields_list:
+        for idx in range(len(road_gt[gt_field])):
+            road_gt[gt_field][idx] = road_gt[gt_field][idx].to(device)
 
 @torch.no_grad()
 def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, output_dir):
