@@ -179,7 +179,7 @@ class IntegratedLoss(nn.Module):
             class_loss, acc = self.loss_labels(model_frame_output["cls_pred"], class_gt, matched_indices)
             class_loss = self.loss_weights['class_weight'] * class_loss
             loss_dict.update({"frame_{}_class_loss".format(i): class_loss})
-            loss_dict.update({"frame_{}_class_accuracy_loss".format(i): acc})
+            # loss_dict.update({"frame_{}_class_accuracy_loss".format(i): acc})
 
             # road element point confidence loss
             point_confidence_gt = road_gt['gt_pt_padding_flags'][i]
