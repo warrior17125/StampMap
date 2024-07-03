@@ -25,7 +25,7 @@ def get_args_parser():
     parser.add_argument('--train_batch_size', default=2, type=int)
     parser.add_argument('--infer_batch_size', default=2, type=int)
     parser.add_argument('--weight_decay', default=1e-4, type=float)
-    parser.add_argument('--epochs', default=80, type=int)
+    parser.add_argument('--epochs', default=3, type=int)
     parser.add_argument('--lr_drop', default=200, type=int)
     parser.add_argument('--warmup_type', default="linear", type=str)
     parser.add_argument('--warmup_iters', default=2000, type=int)
@@ -206,7 +206,7 @@ def main(args):
     print("Start training")
     total_train_step = 0
     writer = SummaryWriter("logs")
-    # tensorboard --logdir=logs --port=6007 --bing_all
+    # tensorboard --logdir=logs --port=6007 --bind_all
     start_time = time.time()
     for epoch in range(args.start_epoch, args.epochs):
         train_one_epoch(model, criterion, data_loader_train, optimizer, device, epoch, 

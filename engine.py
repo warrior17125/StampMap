@@ -30,15 +30,14 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
 
         outputs = model(samples)
         loss_dict = criterion(outputs, samples)
-        loss_total = 0
-        for loss in loss_dict:
-            loss_total += loss_dict[loss].item()
+        loss_total = sum(loss_dict[k] for k in loss_dict.keys())
 
         total_train_step += 1
         if total_train_step % 10 == 0:
             end_time = time.time()
             print(end_time - start_time)
-            print("训练次数：{}, Loss : {}".format(total_train_step, loss_total))
+            print("训练次数：{}, Loss : {:.3f}".format(total_train_step, loss_total))
+            writer.add_scalar("total_loss", loss_total, total_train_step)
             for i in range(5):
                 writer.add_scalar("frame_{}_class_loss".format(i), loss_dict["frame_{}_class_loss".format(i)].item(), total_train_step)
                 writer.add_scalar("frame_{}_point_confidence_loss".format(i), loss_dict["frame_{}_point_confidence_loss".format(i)].item(), total_train_step)
